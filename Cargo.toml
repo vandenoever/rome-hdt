@@ -1,0 +1,9 @@
+[package]
+name = "rdfio-hdt"
+version = "0.1.0"
+authors = ["Jos van den Oever <jos@vandenoever.info>"]
+build = "build.rs"
+
+[dependencies]
+# rdfio = "*"
+# libxml = "*"
