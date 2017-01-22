@@ -46,6 +46,34 @@ impl HDT {
             })
         }
     }
+    pub fn search_sp(&self, subject: &str, predicate: &str) -> rdfio::Result<IteratorTripleID> {
+        let it;
+        unsafe {
+            it = hdt_search_all(self.hdt);
+        }
+        if it.is_null() {
+            Err(rdfio::error::Error::Custom("could not create iterator"))
+        } else {
+            Ok(IteratorTripleID {
+                it: it,
+                hdt: self,
+            })
+        }
+    }
+    pub fn search_op(&self, object: &str, predicate: &str) -> rdfio::Result<IteratorTripleID> {
+        let it;
+        unsafe {
+            it = hdt_search_all(self.hdt);
+        }
+        if it.is_null() {
+            Err(rdfio::error::Error::Custom("could not create iterator"))
+        } else {
+            Ok(IteratorTripleID {
+                it: it,
+                hdt: self,
+            })
+        }
+    }
 }
 impl<'g> Drop for HDT {
     fn drop(&mut self) {

@@ -6,7 +6,10 @@ use std::marker::PhantomData;
 mod hdt;
 mod get_resource_string;
 
-#[derive (Clone)]
+const XSD_STRING: &'static str = "http://www.w3.org/2001/XMLSchema#string";
+const RDF_LANG_STRING: &'static str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString";
+
+#[derive (Clone,Debug)]
 pub struct BlankNodePtr<'g> {
     str: String,
     graph_id: usize,
@@ -33,7 +36,7 @@ impl<'g> Ord for BlankNodePtr<'g> {
     }
 }
 impl<'g> rdfio::graph::BlankNodePtr<'g> for BlankNodePtr<'g> {}
-#[derive (Clone)]
+#[derive (Clone,Debug)]
 pub struct IRIPtr<'g> {
     str: String,
     phantom: PhantomData<&'g u8>,
@@ -59,29 +62,73 @@ impl<'g> rdfio::graph::IRIPtr<'g> for IRIPtr<'g> {
         &self.str
     }
 }
-#[derive (Clone,PartialEq,Eq,PartialOrd,Ord)]
+#[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
+enum LiteralType {
+    None,
+    Datatype,
+    Language,
+}
+#[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
 pub struct LiteralPtr<'g> {
     str: String,
-    datatype: String,
-    language: Option<String>,
+    value_end: usize,
+    literal_type: LiteralType,
     phantom: PhantomData<&'g u8>,
 }
-impl<'g> rdfio::graph::LiteralPtr<'g> for LiteralPtr<'g> {
-    fn as_str(&self) -> &str {
-        &self.str
-    }
-    fn datatype(&self) -> &str {
-        &self.datatype
-    }
-    fn language(&self) -> Option<&str> {
-        if self.language.is_none() {
-            None
+impl<'g> LiteralPtr<'g> {
+    fn new(value: &str, datatype: &str, language: Option<&str>) -> LiteralPtr<'g> {
+        // calculate needed capacity
+        let mut len = value.len() + 2;
+        let literal_type;
+        if let Some(ref lang) = language {
+            len += 1 + lang.len();
+            literal_type = LiteralType::Language;
+        } else if datatype == XSD_STRING {
+            literal_type = LiteralType::None;
         } else {
-            Some(self.language.as_ref().unwrap())
+            len += 4 + datatype.len();
+            literal_type = LiteralType::Datatype;
+        }
+        let mut str = String::with_capacity(len);
+        str.push('\"');
+        str.push_str(value);
+        str.push('"');
+        if let Some(ref lang) = language {
+            str.push_str("@");
+            str.push_str(lang);
+        } else if literal_type == LiteralType::Datatype {
+            str.push_str("^^<");
+            str.push_str(datatype);
+            str.push('>');
+        }
+        LiteralPtr {
+            str: str,
+            value_end: value.len() + 1,
+            literal_type: literal_type,
+            phantom: PhantomData,
         }
     }
 }
-#[derive (Clone,PartialEq,Eq,PartialOrd,Ord)]
+impl<'g> rdfio::graph::LiteralPtr<'g> for LiteralPtr<'g> {
+    fn as_str(&self) -> &str {
+        &self.str[1..self.value_end]
+    }
+    fn datatype(&self) -> &str {
+        match self.literal_type {
+            LiteralType::None => XSD_STRING,
+            LiteralType::Datatype => &self.str[self.value_end + 4..self.str.len() - 1],
+            LiteralType::Language => RDF_LANG_STRING,
+        }
+    }
+    fn language(&self) -> Option<&str> {
+        match self.literal_type {
+            LiteralType::None => None,
+            LiteralType::Datatype => None,
+            LiteralType::Language => Some(&self.str[self.value_end + 2..]),
+        }
+    }
+}
+#[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
 pub struct Triple<'g> {
     subject: rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>,
     predicate: IRIPtr<'g>,
@@ -115,30 +162,24 @@ fn string_to_iri<'g>(string: String) -> IRIPtr<'g> {
         phantom: PhantomData,
     }
 }
-fn string_to_literal<'g>(mut string: String) -> LiteralPtr<'g> {
+fn string_to_literal<'g>(string: String) -> LiteralPtr<'g> {
     if string.starts_with("\"") {
         if let Some(end) = string[1..].find("\"") {
-            let datatype;
-            let language;
+            let literal_type;
             if end + 2 == string.len() {
-                datatype = String::from("http://www.w3.org/2001/XMLSchema#string");
-                language = None;
+                literal_type = LiteralType::None;
             } else if string.ends_with(">") {
+                literal_type = LiteralType::Datatype;
                 assert!(&string[end + 2..end + 5] == "^^<");
-                datatype = String::from(&string[end + 5..string.len() - 1]);
-                language = None;
             } else if &string[end + 2..end + 3] == "@" {
-                datatype = String::from("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
-                language = Some(String::from(&string[end + 3..]));
+                literal_type = LiteralType::Language;
             } else {
                 panic!(format!("Not a valid literal: '{}'", string));
             }
-            string.truncate(end + 1);
-            string.remove(0);
             return LiteralPtr {
                 str: string,
-                datatype: datatype,
-                language: language,
+                value_end: end + 1,
+                literal_type: literal_type,
                 phantom: PhantomData,
             };
         }
@@ -180,6 +221,25 @@ impl<'g> Iterator for Iter<'g> {
         })
     }
 }
+
+fn blank_node_or_iri_to_hdt_string<'g>(blank_node_or_iri: &'g rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>) -> &'g str {
+    match blank_node_or_iri {
+        &rdfio::graph::BlankNodeOrIRI::BlankNode(ref b, _) => &b.str,
+        &rdfio::graph::BlankNodeOrIRI::IRI(ref i) => &i.str,
+    }
+}
+fn resource_to_hdt_string<'g>(resource: &'g rdfio::graph::Resource<'g,
+                                                                   BlankNodePtr<'g>,
+                                                                   IRIPtr<'g>,
+                                                                   LiteralPtr<'g>>)
+                              -> &'g str {
+    match resource {
+        &rdfio::graph::Resource::BlankNode(ref b, _) => &b.str,
+        &rdfio::graph::Resource::IRI(ref i) => &i.str,
+        &rdfio::graph::Resource::Literal(ref l) => &l.str,
+    }
+}
+
 impl<'g> rdfio::iter::SortedIterator for Iter<'g> {}
 pub struct HDT<'g> {
     graph_id: usize,
@@ -213,21 +273,27 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
         }
     }
     fn find_iri<'a>(&'g self, iri: &'a str) -> Option<Self::IRIPtr> {
-        None
+        Some(IRIPtr {
+            str: String::from(iri),
+            phantom: PhantomData,
+        })
     }
     fn find_literal<'a>(&'g self,
                         literal: &'a str,
                         datatype: &'a str,
                         language: Option<&'a str>)
                         -> Option<Self::LiteralPtr> {
-        None
+        Some(LiteralPtr::new(literal, datatype, language))
     }
-
     fn iter_s_p(&'g self,
                 subject: rdfio::graph::BlankNodeOrIRI<'g, Self::BlankNodePtr, Self::IRIPtr>,
                 predicate: Self::IRIPtr)
                 -> Self::SPORangeIter {
-        self.empty_spo_range()
+        let subject = blank_node_or_iri_to_hdt_string(&subject);
+        Iter {
+            it: self.hdt.search_sp(subject, &predicate.str).unwrap(),
+            hdt: self,
+        }
     }
     fn iter_o_p(&'g self,
                 object: rdfio::graph::Resource<'g,
@@ -236,9 +302,12 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
                                                Self::LiteralPtr>,
                 predicate: Self::IRIPtr)
                 -> Self::OPSRangeIter {
-        self.empty_ops_range()
+        let object = resource_to_hdt_string(&object);
+        Iter {
+            it: self.hdt.search_op(object, &predicate.str).unwrap(),
+            hdt: self,
+        }
     }
-
     /// iterator that returns no results
     fn empty_spo_range(&'g self) -> Self::SPORangeIter {
         Iter {
@@ -266,9 +335,13 @@ fn load_inexistant_file() {
 }
 
 #[test]
-fn iter() {
-    use rdfio::graph::Graph;
+fn iter_literals() {
+    use rdfio::graph::{Graph, Triple, LiteralPtr};
     let hdt = HDT::new("data/literals.hdt").unwrap();
-    for _ in hdt.iter() {
+    for t in hdt.iter() {
+        let o = t.object();
+        let l1 = o.as_literal().unwrap();
+        let l2 = self::LiteralPtr::new(l1.as_str(), l1.datatype(), l1.language());
+        assert_eq!(l1, &l2);
     }
 }
