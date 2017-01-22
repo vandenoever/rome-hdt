@@ -1,6 +1,6 @@
 // thanks to Nicole Mazzuca for this code
 // licensed under CC-0
-use libc::c_void;
+use std::os::raw::c_void;
 
 #[repr(C)]
 #[derive (Clone)]

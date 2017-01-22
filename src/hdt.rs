@@ -1,5 +1,6 @@
-use libc::c_void;
 use rdfio;
+use std::ffi::CString;
+use std::os::raw::{c_void, c_char};
 
 use get_resource_string::*;
 
@@ -8,6 +9,8 @@ extern "C" {
     fn delete_hdt(hdt: *mut c_void);
 
     fn hdt_search_all(hdt: *mut c_void) -> *mut c_void;
+    fn hdt_search_sp(hdt: *mut c_void, s: *const c_char, p: *const c_char) -> *mut c_void;
+    fn hdt_search_op(hdt: *mut c_void, o: *const c_char, p: *const c_char) -> *mut c_void;
     fn delete_iterator_triple_id(hdt: *mut c_void);
     fn hdt_triple_id_has_next(it: *mut c_void) -> bool;
     fn hdt_triple_id_next(it: *mut c_void) -> *mut c_void;
@@ -46,29 +49,33 @@ impl HDT {
             })
         }
     }
-    pub fn search_sp(&self, subject: &str, predicate: &str) -> rdfio::Result<IteratorTripleID> {
+    pub fn search_sp(&self, subject: &str, predicate: &str) -> Option<IteratorTripleID> {
         let it;
+        let subject = CString::new(subject).unwrap();
+        let predicate = CString::new(predicate).unwrap();
         unsafe {
-            it = hdt_search_all(self.hdt);
+            it = hdt_search_sp(self.hdt, subject.as_ptr(), predicate.as_ptr());
         }
         if it.is_null() {
-            Err(rdfio::error::Error::Custom("could not create iterator"))
+            None
         } else {
-            Ok(IteratorTripleID {
+            Some(IteratorTripleID {
                 it: it,
                 hdt: self,
             })
         }
     }
-    pub fn search_op(&self, object: &str, predicate: &str) -> rdfio::Result<IteratorTripleID> {
+    pub fn search_op(&self, object: &str, predicate: &str) -> Option<IteratorTripleID> {
         let it;
+        let object = CString::new(object).unwrap();
+        let predicate = CString::new(predicate).unwrap();
         unsafe {
-            it = hdt_search_all(self.hdt);
+            it = hdt_search_op(self.hdt, object.as_ptr(), predicate.as_ptr());
         }
         if it.is_null() {
-            Err(rdfio::error::Error::Custom("could not create iterator"))
+            None
         } else {
-            Ok(IteratorTripleID {
+            Some(IteratorTripleID {
                 it: it,
                 hdt: self,
             })

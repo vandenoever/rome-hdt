@@ -1,4 +1,3 @@
-extern crate libc;
 extern crate rdfio;
 extern crate rand;
 use std::marker::PhantomData;
@@ -36,6 +35,16 @@ impl<'g> Ord for BlankNodePtr<'g> {
     }
 }
 impl<'g> rdfio::graph::BlankNodePtr<'g> for BlankNodePtr<'g> {}
+impl<'g> Into<rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for BlankNodePtr<'g> {
+    fn into(self) -> rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
+        rdfio::graph::BlankNodeOrIRI::BlankNode(self, PhantomData)
+    }
+}
+impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for BlankNodePtr<'g> {
+    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rdfio::graph::Resource::BlankNode(self, PhantomData)
+    }
+}
 #[derive (Clone,Debug)]
 pub struct IRIPtr<'g> {
     str: String,
@@ -60,6 +69,16 @@ impl<'g> Ord for IRIPtr<'g> {
 impl<'g> rdfio::graph::IRIPtr<'g> for IRIPtr<'g> {
     fn as_str(&self) -> &str {
         &self.str
+    }
+}
+impl<'g> Into<rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for IRIPtr<'g> {
+    fn into(self) -> rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
+        rdfio::graph::BlankNodeOrIRI::IRI(self)
+    }
+}
+impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for IRIPtr<'g> {
+    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rdfio::graph::Resource::IRI(self)
     }
 }
 #[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
@@ -128,6 +147,11 @@ impl<'g> rdfio::graph::LiteralPtr<'g> for LiteralPtr<'g> {
         }
     }
 }
+impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for LiteralPtr<'g> {
+    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rdfio::graph::Resource::Literal(self)
+    }
+}
 #[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
 pub struct Triple<'g> {
     subject: rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>,
@@ -144,10 +168,6 @@ impl<'g> rdfio::graph::Triple<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> 
     fn object(&self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
         self.object.clone()
     }
-}
-pub struct Iter<'g> {
-    it: hdt::IteratorTripleID<'g>,
-    hdt: &'g HDT<'g>,
 }
 fn string_to_blank_node<'g>(string: String, graph_id: usize) -> BlankNodePtr<'g> {
     BlankNodePtr {
@@ -186,10 +206,18 @@ fn string_to_literal<'g>(string: String) -> LiteralPtr<'g> {
     }
     panic!(format!("Not a valid literal: '{}'", string));
 }
+pub struct Iter<'g> {
+    it: Option<hdt::IteratorTripleID<'g>>,
+    hdt: &'g HDT<'g>,
+}
 impl<'g> Iterator for Iter<'g> {
     type Item = Triple<'g>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.it.next().map(|triple| {
+        if self.it.is_none() {
+            return None;
+        }
+        let it = &self.it.as_ref().unwrap();
+        it.next().map(|triple| {
             let subject_str = triple.0;
             let object_str = triple.2;
             let subject;
@@ -268,7 +296,7 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
     type OPSRangeIter = Iter<'g>;
     fn iter(&'g self) -> Self::SPOIter {
         Iter {
-            it: self.hdt.search_all().unwrap(),
+            it: Some(self.hdt.search_all().unwrap()),
             hdt: self,
         }
     }
@@ -291,7 +319,7 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
                 -> Self::SPORangeIter {
         let subject = blank_node_or_iri_to_hdt_string(&subject);
         Iter {
-            it: self.hdt.search_sp(subject, &predicate.str).unwrap(),
+            it: self.hdt.search_sp(subject, &predicate.str),
             hdt: self,
         }
     }
@@ -304,21 +332,21 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
                 -> Self::OPSRangeIter {
         let object = resource_to_hdt_string(&object);
         Iter {
-            it: self.hdt.search_op(object, &predicate.str).unwrap(),
+            it: self.hdt.search_op(object, &predicate.str),
             hdt: self,
         }
     }
     /// iterator that returns no results
     fn empty_spo_range(&'g self) -> Self::SPORangeIter {
         Iter {
-            it: self.hdt.search_all().unwrap(),
+            it: None,
             hdt: self,
         }
     }
     /// iterator that returns no results
     fn empty_ops_range(&'g self) -> Self::OPSRangeIter {
         Iter {
-            it: self.hdt.search_all().unwrap(),
+            it: None,
             hdt: self,
         }
     }
@@ -338,10 +366,28 @@ fn load_inexistant_file() {
 fn iter_literals() {
     use rdfio::graph::{Graph, Triple, LiteralPtr};
     let hdt = HDT::new("data/literals.hdt").unwrap();
+    assert_eq!(hdt.iter().count(), 9);
     for t in hdt.iter() {
         let o = t.object();
         let l1 = o.as_literal().unwrap();
         let l2 = self::LiteralPtr::new(l1.as_str(), l1.datatype(), l1.language());
         assert_eq!(l1, &l2);
     }
+}
+
+#[test]
+fn iter_spo() {
+    use rdfio::graph::Graph;
+    let hdt = HDT::new("data/literals.hdt").unwrap();
+    let s = hdt.find_iri("s").unwrap();
+    let p = hdt.find_iri("p").unwrap();
+    assert_eq!(hdt.iter_s_p(s.into(), p).count(), 9);
+}
+#[test]
+fn iter_ops() {
+    use rdfio::graph::Graph;
+    let hdt = HDT::new("data/literals.hdt").unwrap();
+    let o = hdt.find_literal("abc", "bcd", None).unwrap();
+    let p = hdt.find_iri("p").unwrap();
+    assert_eq!(hdt.iter_o_p(o.into(), p).count(), 1);
 }

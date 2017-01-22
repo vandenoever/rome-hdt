@@ -7,7 +7,6 @@ license = "LGPLv2+"
 
 [dependencies]
 rdfio = { git = "file:///home/oever/src/mymail/rdfio" }
-libc = "*"
 rand = "*"
 
 [build-dependencies]

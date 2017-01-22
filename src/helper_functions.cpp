@@ -23,6 +23,34 @@ extern "C" {
         }
         return it;
     }
+    void* hdt_search_sp(void *hdt, const char* s, const char* p) {
+        hdt::Dictionary * d = static_cast<hdt::HDT*>(hdt)->getDictionary();
+        hdt::IteratorTripleID* it = 0;
+        try {
+            std::string subject_str(s);
+            unsigned int subject = d->stringToId(subject_str, hdt::SUBJECT);
+            std::string predicate_str(p);
+            unsigned int predicate = d->stringToId(predicate_str, hdt::PREDICATE);
+            hdt::TripleID pattern(subject, predicate, 0);
+            it = static_cast<hdt::HDT*>(hdt)->getTriples()->search(pattern);
+        } catch (...) {
+        }
+        return it;
+    }
+    void* hdt_search_op(void *hdt, const char* o, const char* p) {
+        hdt::Dictionary * d = static_cast<hdt::HDT*>(hdt)->getDictionary();
+        hdt::IteratorTripleID* it = 0;
+        try {
+            std::string object_str(o);
+            unsigned int object = d->stringToId(object_str, hdt::OBJECT);
+            std::string predicate_str(p);
+            unsigned int predicate = d->stringToId(predicate_str, hdt::PREDICATE);
+            hdt::TripleID pattern(0, predicate, object);
+            it = static_cast<hdt::HDT*>(hdt)->getTriples()->search(pattern);
+        } catch (...) {
+        }
+        return it;
+    }
     void delete_iterator_triple_id(void *it) {
         delete static_cast<hdt::IteratorTripleID*>(it);
     }
