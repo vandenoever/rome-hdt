@@ -1,4 +1,4 @@
-extern crate rdfio;
+extern crate rome;
 extern crate rand;
 use std::marker::PhantomData;
 use std::fmt;
@@ -40,15 +40,15 @@ impl<'g> fmt::Display for BlankNodePtr<'g> {
         write!(f, "{}", self.str)
     }
 }
-impl<'g> rdfio::graph::BlankNodePtr<'g> for BlankNodePtr<'g> {}
-impl<'g> Into<rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for BlankNodePtr<'g> {
-    fn into(self) -> rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
-        rdfio::graph::BlankNodeOrIRI::BlankNode(self, PhantomData)
+impl<'g> rome::graph::BlankNodePtr<'g> for BlankNodePtr<'g> {}
+impl<'g> Into<rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for BlankNodePtr<'g> {
+    fn into(self) -> rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
+        rome::graph::BlankNodeOrIRI::BlankNode(self, PhantomData)
     }
 }
-impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for BlankNodePtr<'g> {
-    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
-        rdfio::graph::Resource::BlankNode(self, PhantomData)
+impl<'g> Into<rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for BlankNodePtr<'g> {
+    fn into(self) -> rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rome::graph::Resource::BlankNode(self, PhantomData)
     }
 }
 #[derive (Clone,Debug)]
@@ -72,19 +72,34 @@ impl<'g> Ord for IRIPtr<'g> {
         self.str.cmp(&other.str)
     }
 }
-impl<'g> rdfio::graph::IRIPtr<'g> for IRIPtr<'g> {
+impl<'g> rome::graph::IRIPtr<'g> for IRIPtr<'g> {
     fn as_str(&self) -> &str {
         &self.str
     }
 }
-impl<'g> Into<rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for IRIPtr<'g> {
-    fn into(self) -> rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
-        rdfio::graph::BlankNodeOrIRI::IRI(self)
+impl<'g> Into<rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>> for IRIPtr<'g> {
+    fn into(self) -> rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
+        rome::graph::BlankNodeOrIRI::IRI(self)
     }
 }
-impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for IRIPtr<'g> {
-    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
-        rdfio::graph::Resource::IRI(self)
+impl<'g> Into<rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for IRIPtr<'g> {
+    fn into(self) -> rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rome::graph::Resource::IRI(self)
+    }
+}
+#[derive (PartialEq)]
+pub enum DatatypePtr {
+    None,
+    Datatype(String),
+    Language,
+}
+impl<'g> rome::graph::DatatypePtr<'g> for DatatypePtr {
+    fn as_str(&self) -> &str {
+        match self {
+            &DatatypePtr::None => XSD_STRING,
+            &DatatypePtr::Datatype(ref str) => str,
+            &DatatypePtr::Language => RDF_LANG_STRING,
+        }
     }
 }
 #[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
@@ -134,11 +149,22 @@ impl<'g> LiteralPtr<'g> {
         }
     }
 }
-impl<'g> rdfio::graph::LiteralPtr<'g> for LiteralPtr<'g> {
+impl<'g> rome::graph::LiteralPtr<'g> for LiteralPtr<'g> {
+    type DatatypePtr = DatatypePtr;
     fn as_str(&self) -> &str {
         &self.str[1..self.value_end]
     }
-    fn datatype(&self) -> &str {
+    fn datatype(&self) -> DatatypePtr {
+        match self.literal_type {
+            LiteralType::None => DatatypePtr::None,
+            LiteralType::Datatype => {
+                DatatypePtr::Datatype(String::from(&self.str[self.value_end + 4..self.str.len() -
+                                                                                 1]))
+            }
+            LiteralType::Language => DatatypePtr::Language,
+        }
+    }
+    fn datatype_str(&self) -> &str {
         match self.literal_type {
             LiteralType::None => XSD_STRING,
             LiteralType::Datatype => &self.str[self.value_end + 4..self.str.len() - 1],
@@ -153,25 +179,25 @@ impl<'g> rdfio::graph::LiteralPtr<'g> for LiteralPtr<'g> {
         }
     }
 }
-impl<'g> Into<rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for LiteralPtr<'g> {
-    fn into(self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
-        rdfio::graph::Resource::Literal(self)
+impl<'g> Into<rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>> for LiteralPtr<'g> {
+    fn into(self) -> rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+        rome::graph::Resource::Literal(self)
     }
 }
 #[derive (Clone,PartialEq,Eq,PartialOrd,Ord,Debug)]
 pub struct Triple<'g> {
-    subject: rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>,
+    subject: rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>,
     predicate: IRIPtr<'g>,
-    object: rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>,
+    object: rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>>,
 }
-impl<'g> rdfio::graph::Triple<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> for Triple<'g> {
-    fn subject(&self) -> rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
+impl<'g> rome::graph::Triple<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> for Triple<'g> {
+    fn subject(&self) -> rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>> {
         self.subject.clone()
     }
     fn predicate(&self) -> IRIPtr<'g> {
         self.predicate.clone()
     }
-    fn object(&self) -> rdfio::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
+    fn object(&self) -> rome::graph::Resource<'g, BlankNodePtr<'g>, IRIPtr<'g>, LiteralPtr<'g>> {
         self.object.clone()
     }
 }
@@ -231,23 +257,23 @@ impl<'g> Iterator for Iter<'g> {
             let subject;
             if subject_str.starts_with("_") {
                 subject =
-                    rdfio::graph::BlankNodeOrIRI::BlankNode(string_to_blank_node(subject_str,
+                    rome::graph::BlankNodeOrIRI::BlankNode(string_to_blank_node(subject_str,
                                                                                  self.hdt
                                                                                      .graph_id),
                                                             PhantomData);
             } else {
-                subject = rdfio::graph::BlankNodeOrIRI::IRI(string_to_iri(subject_str));
+                subject = rome::graph::BlankNodeOrIRI::IRI(string_to_iri(subject_str));
             }
             let object;
             if object_str.starts_with("_") {
-                object = rdfio::graph::Resource::BlankNode(string_to_blank_node(object_str,
+                object = rome::graph::Resource::BlankNode(string_to_blank_node(object_str,
                                                                                 self.hdt
                                                                                     .graph_id),
                                                            PhantomData);
             } else if object_str.starts_with("\"") {
-                object = rdfio::graph::Resource::Literal(string_to_literal(object_str));
+                object = rome::graph::Resource::Literal(string_to_literal(object_str));
             } else {
-                object = rdfio::graph::Resource::IRI(string_to_iri(object_str));
+                object = rome::graph::Resource::IRI(string_to_iri(object_str));
             }
             Triple {
                 subject: subject,
@@ -258,25 +284,25 @@ impl<'g> Iterator for Iter<'g> {
     }
 }
 
-fn blank_node_or_iri_to_hdt_string<'g>(blank_node_or_iri: &'g rdfio::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>) -> &'g str {
+fn blank_node_or_iri_to_hdt_string<'g>(blank_node_or_iri: &'g rome::graph::BlankNodeOrIRI<'g, BlankNodePtr<'g>, IRIPtr<'g>>) -> &'g str {
     match blank_node_or_iri {
-        &rdfio::graph::BlankNodeOrIRI::BlankNode(ref b, _) => &b.str,
-        &rdfio::graph::BlankNodeOrIRI::IRI(ref i) => &i.str,
+        &rome::graph::BlankNodeOrIRI::BlankNode(ref b, _) => &b.str,
+        &rome::graph::BlankNodeOrIRI::IRI(ref i) => &i.str,
     }
 }
-fn resource_to_hdt_string<'g>(resource: &'g rdfio::graph::Resource<'g,
+fn resource_to_hdt_string<'g>(resource: &'g rome::graph::Resource<'g,
                                                                    BlankNodePtr<'g>,
                                                                    IRIPtr<'g>,
                                                                    LiteralPtr<'g>>)
                               -> &'g str {
     match resource {
-        &rdfio::graph::Resource::BlankNode(ref b, _) => &b.str,
-        &rdfio::graph::Resource::IRI(ref i) => &i.str,
-        &rdfio::graph::Resource::Literal(ref l) => &l.str,
+        &rome::graph::Resource::BlankNode(ref b, _) => &b.str,
+        &rome::graph::Resource::IRI(ref i) => &i.str,
+        &rome::graph::Resource::Literal(ref l) => &l.str,
     }
 }
 
-impl<'g> rdfio::iter::SortedIterator for Iter<'g> {}
+impl<'g> rome::iter::SortedIterator for Iter<'g> {}
 pub struct HDT<'g> {
     graph_id: usize,
     hdt: hdt::HDT,
@@ -284,7 +310,7 @@ pub struct HDT<'g> {
 }
 
 impl<'g> HDT<'g> {
-    pub fn new(file_path: &str) -> rdfio::Result<HDT> {
+    pub fn new(file_path: &str) -> rome::Result<HDT> {
         Ok(HDT {
             graph_id: rand::random::<usize>(),
             hdt: hdt::HDT::new(file_path)?,
@@ -293,7 +319,7 @@ impl<'g> HDT<'g> {
     }
 }
 
-impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
+impl<'g> rome::graph::Graph<'g> for HDT<'g> {
     type BlankNodePtr = BlankNodePtr<'g>;
     type IRIPtr = IRIPtr<'g>;
     type LiteralPtr = LiteralPtr<'g>;
@@ -321,8 +347,17 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
                         -> Option<Self::LiteralPtr> {
         Some(LiteralPtr::new(literal, datatype, language))
     }
+    fn find_datatype<'a>(&'g self, datatype: &'a str) -> Option<DatatypePtr> {
+        Some(if datatype == XSD_STRING {
+            DatatypePtr::None
+        } else if datatype == RDF_LANG_STRING {
+            DatatypePtr::Language
+        } else {
+            DatatypePtr::Datatype(String::from(datatype))
+        })
+    }
     fn iter_s_p(&'g self,
-                subject: rdfio::graph::BlankNodeOrIRI<'g, Self::BlankNodePtr, Self::IRIPtr>,
+                subject: rome::graph::BlankNodeOrIRI<'g, Self::BlankNodePtr, Self::IRIPtr>,
                 predicate: Self::IRIPtr)
                 -> Self::SPORangeIter {
         let subject = blank_node_or_iri_to_hdt_string(&subject);
@@ -332,7 +367,7 @@ impl<'g> rdfio::graph::Graph<'g> for HDT<'g> {
         }
     }
     fn iter_o_p(&'g self,
-                object: rdfio::graph::Resource<'g,
+                object: rome::graph::Resource<'g,
                                                Self::BlankNodePtr,
                                                Self::IRIPtr,
                                                Self::LiteralPtr>,
@@ -372,20 +407,20 @@ fn load_inexistant_file() {
 
 #[test]
 fn iter_literals() {
-    use rdfio::graph::{Graph, Triple, LiteralPtr};
+    use rome::graph::{Graph, Triple, LiteralPtr};
     let hdt = HDT::new("data/literals.hdt").unwrap();
     assert_eq!(hdt.iter().count(), 9);
     for t in hdt.iter() {
         let o = t.object();
         let l1 = o.as_literal().unwrap();
-        let l2 = self::LiteralPtr::new(l1.as_str(), l1.datatype(), l1.language());
+        let l2 = self::LiteralPtr::new(l1.as_str(), l1.datatype_str(), l1.language());
         assert_eq!(l1, &l2);
     }
 }
 
 #[test]
 fn iter_spo() {
-    use rdfio::graph::Graph;
+    use rome::graph::Graph;
     let hdt = HDT::new("data/literals.hdt").unwrap();
     let s = hdt.find_iri("s").unwrap();
     let p = hdt.find_iri("p").unwrap();
@@ -393,7 +428,7 @@ fn iter_spo() {
 }
 #[test]
 fn iter_ops() {
-    use rdfio::graph::Graph;
+    use rome::graph::Graph;
     let hdt = HDT::new("data/literals.hdt").unwrap();
     let o = hdt.find_literal("abc", "bcd", None).unwrap();
     let p = hdt.find_iri("p").unwrap();

@@ -1,13 +1,17 @@
 [package]
-name = "rdfio-hdt"
+name = "rome-hdt"
 version = "0.1.0"
 authors = ["Jos van den Oever <jos@vandenoever.info>"]
 build = "build.rs"
 license = "LGPLv2+"
+description = "HDT support for Rome"
+homepage = "https://github.com/vandenoever/rome-hdt"
+repository = "https://github.com/vandenoever/rome-hdt"
+documentation = "https://github.com/vandenoever/rome-hdt"
 
 [dependencies]
-rdfio = { git = "file:///home/oever/src/mymail/rdfio" }
-rand = "*"
+rand = "0.3.15"
+rome = "0.1.0"
 
 [build-dependencies]
-gcc = "*"
+gcc = "0.3.41"

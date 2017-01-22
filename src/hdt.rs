@@ -1,4 +1,4 @@
-use rdfio;
+use rome;
 use std::ffi::CString;
 use std::os::raw::{c_void, c_char};
 
@@ -24,24 +24,24 @@ pub struct HDT {
 }
 
 impl HDT {
-    pub fn new(file_path: &str) -> rdfio::Result<HDT> {
+    pub fn new(file_path: &str) -> rome::Result<HDT> {
         let hdt;
         unsafe {
             hdt = map_indexed_hdt(file_path.as_ptr());
         }
         if hdt.is_null() {
-            Err(rdfio::error::Error::Custom("could not open file"))
+            Err(rome::error::Error::Custom("could not open file"))
         } else {
             Ok(HDT { hdt: hdt })
         }
     }
-    pub fn search_all(&self) -> rdfio::Result<IteratorTripleID> {
+    pub fn search_all(&self) -> rome::Result<IteratorTripleID> {
         let it;
         unsafe {
             it = hdt_search_all(self.hdt);
         }
         if it.is_null() {
-            Err(rdfio::error::Error::Custom("could not create iterator"))
+            Err(rome::error::Error::Custom("could not create iterator"))
         } else {
             Ok(IteratorTripleID {
                 it: it,

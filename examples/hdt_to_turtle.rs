@@ -1,15 +1,15 @@
-extern crate rdfio;
-extern crate rdfio_hdt;
+extern crate rome;
+extern crate rome_hdt;
 use std::env::args;
 
-use rdfio::namespaces::Namespaces;
+use rome::namespaces::Namespaces;
 
 fn main() {
-    use rdfio::graph::{Graph};
+    use rome::graph::Graph;
     let mut args = args();
     args.next();
     let hdt = args.next().unwrap();
-    let hdt = rdfio_hdt::HDT::new(&hdt).unwrap();
+    let hdt = rome_hdt::HDT::new(&hdt).unwrap();
     let mut namespaces = Namespaces::new();
     namespaces.set(b"dc", "http://purl.org/dc/terms/");
     namespaces.set(b"foaf", "http://xmlns.com/foaf/0.1/");
@@ -25,5 +25,6 @@ fn main() {
     namespaces.set(b"wkr", "http://wiktionary.dbpedia.org/resource/");
     namespaces.set(b"wkt", "http://wiktionary.dbpedia.org/terms/");
     namespaces.set(b"xs", "http://www.w3.org/2001/XMLSchema#");
-    rdfio::io::write_turtle(&namespaces, hdt.iter(), &mut ::std::io::stdout()).expect("failed to write turtle");
+    rome::io::write_turtle(&namespaces, hdt.iter(), &hdt, &mut ::std::io::stdout())
+        .expect("failed to write turtle");
 }
