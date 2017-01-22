@@ -3,7 +3,12 @@ name = "rdfio-hdt"
 version = "0.1.0"
 authors = ["Jos van den Oever <jos@vandenoever.info>"]
 build = "build.rs"
+license = "LGPLv2+"
 
 [dependencies]
-# rdfio = "*"
-# libxml = "*"
+rdfio = { git = "file:///home/oever/src/mymail/rdfio" }
+libc = "*"
+rand = "*"
+
+[build-dependencies]
+gcc = "*"
