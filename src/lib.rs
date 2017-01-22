@@ -1,6 +1,7 @@
 extern crate rdfio;
 extern crate rand;
 use std::marker::PhantomData;
+use std::fmt;
 
 mod hdt;
 mod get_resource_string;
@@ -32,6 +33,11 @@ impl<'g> Ord for BlankNodePtr<'g> {
             cmp = self.graph_id.cmp(&other.graph_id)
         }
         cmp
+    }
+}
+impl<'g> fmt::Display for BlankNodePtr<'g> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.str)
     }
 }
 impl<'g> rdfio::graph::BlankNodePtr<'g> for BlankNodePtr<'g> {}
@@ -184,7 +190,9 @@ fn string_to_iri<'g>(string: String) -> IRIPtr<'g> {
 }
 fn string_to_literal<'g>(string: String) -> LiteralPtr<'g> {
     if string.starts_with("\"") {
-        if let Some(end) = string[1..].find("\"") {
+        // we use 'rfind' because a literal may contain escaped " characters
+        // TODO: figure out how to work with escapes and HDT
+        if let Some(end) = string[1..].rfind("\"") {
             let literal_type;
             if end + 2 == string.len() {
                 literal_type = LiteralType::None;
